@@ -2,40 +2,64 @@ import base64
 
 from time import sleep
 
+import yaml
 import praw
 import requests
 
 
-def main(already_commented):
+def main():
+    with open('already_commented_ids.yaml') as ids_file:
+        already_commented_ids = yaml.load(ids_file.read())
+
+    with open('top_phrases.yaml') as phrases_file:
+        top_phrases = yaml.load(phrases_file.read())
+
     username = 'frinkiac-bot'
-    password = <password>
+    password = '<password>'
+    client_id = '<client_id>'
+    client_secret = '<client_secret>'
     useragent = ("Frinkiac assistant for fans of The Simpsons. Contact me at "
-                 "jrg2156@gmail.com")
+                 "jrg2156@gmail.com (by /u/juanthedev)")
 
-    reddit_client = praw.Reddit(useragent)
-    reddit_client.login(username, password, disable_warning=True)
+    reddit_client = praw.Reddit(user_agent=useragent,
+                                username=username,
+                                password=password,
+                                client_id=client_id,
+                                client_secret=client_secret)
 
-    subreddit = 'TheSimpsons'
+    subreddit = 'thesimpsons'
+    subreddit = reddit_client.subreddit(subreddit)
 
-    already_commented = set()
+    while True:
+        old_id_list = already_commented_ids
+        already_commented_ids = []
+        for comment in subreddit.comments(limit=200):
+            if comment.id not in old_id_list:
+                query = frinkiac_query(comment.body)
+                if query:
+                    frinkiac_image_url = None
+                    if query in top_phrases:
+                        frinkiac_image_url = top_phrases[query]
+                    else:
+                        frinkiac_image_url = search_frinkiac(query)
 
-    subreddit = reddit_client.get_subreddit(subreddit)
-    for comment in subreddit.get_comments():
-        if comment.id not in already_commented:
-            query = frinkiac_query(comment.body)
-            if query:
-                frinkiac_image_url = search_frinkiac(query)
-                comment.reply(frinkiac_image_url)
-                already_commented.add(comment.id)
+                    if frinkiac_image_url is not None:
+                        comment.reply(frinkiac_image_url)
+                        sleep(600)  # Can't reply again for another 10 minutes.
+                        already_commented_ids.append(comment.id)
 
 
 def frinkiac_query(comment_text):
+    """
+    Return query text or False if this comment doesn't begin with one of the
+    bots trigger phrases.
+    """
     comment_text = normalize_text(comment_text)
-    print comment_text
     trigger_phrases = ['frinkiac', 'hey frinkiac', 'yo frinkiac', 'frinkiac:']
     for phrase in trigger_phrases:
         if comment_text.startswith(phrase):
-            _, query = comment_text.split(phrase)
+            comment_text = comment_text[len(phrase):]
+            query = comment_text.lstrip(' ,')
             return query
     else:
         return False
@@ -49,12 +73,19 @@ def normalize_text(comment_text):
 
 
 def search_frinkiac(query):
+    """
+    Search 'query' in frinkiac.com and return the url for the top result image.
+
+    Image url will include the meme text as a caption.
+    """
     search_url = u'https://frinkiac.com/api/search?q={frinkiac_query}'
     captions_url = u'https://frinkiac.com/api/caption?e={episode}&t={timestamp}'
     image_url = u'https://frinkiac.com/meme/{episode}/{timestamp}.jpg?b64lines={b64_subtitles}'
 
     search_url = search_url.format(frinkiac_query=query)
     search_results = requests.get(search_url).json()
+
+    # If there are results, build the meme image link for the top result...
     if search_results:
         top_result = search_results[0]
         episode = top_result['Episode']
@@ -70,10 +101,10 @@ def search_frinkiac(query):
         return image_url.format(episode=episode,
                                 timestamp=timestamp,
                                 b64_subtitles=b64_subtitles)
+    # ...else return False to indicate that there were no results for this query.
+    else:
+        return False
 
 
 if __name__ == "__main__":
-    already_commented = set()
-    while True:
-        sleep(600)
-        main(already_commented)
+    main()

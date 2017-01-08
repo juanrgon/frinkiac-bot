@@ -2,6 +2,7 @@ import base64
 
 from time import sleep
 
+from fuzzywuzzy import fuzz, process
 import yaml
 import praw
 import requests
@@ -27,26 +28,41 @@ def main():
                                 client_id=client_id,
                                 client_secret=client_secret)
 
-    subreddit = 'thesimpsons'
-    subreddit = reddit_client.subreddit(subreddit)
+    subreddit = reddit_client.subreddit('TheSimpsons')
 
     while True:
         old_id_list = already_commented_ids
         already_commented_ids = []
+        with open('already_commented_ids.yaml', 'w') as phrases_file:
+            top_phrases_yaml = yaml.dump(phrases_file.read(),
+                                         default_flow_style=False)
+            phrases_file.write(top_phrases_yaml)
         for comment in subreddit.comments(limit=200):
             if comment.id not in old_id_list:
                 query = frinkiac_query(comment.body)
                 if query:
-                    frinkiac_image_url = None
-                    if query in top_phrases:
-                        frinkiac_image_url = top_phrases[query]
-                    else:
-                        frinkiac_image_url = search_frinkiac(query)
+                    matched_top_phrase = top_phrase_match(query,
+                                                          top_phrases.keys())
+                    if matched_top_phrase is not None:
+                        image_url = top_phrases[query]
 
-                    if frinkiac_image_url is not None:
-                        comment.reply(frinkiac_image_url)
-                        sleep(600)  # Can't reply again for another 10 minutes.
+                    else:
+                        image_url = search_frinkiac(query)
+
+                    if image_url is not None:
+                        reply_message = '[Search Result]({})'.format(image_url)
+                        comment.reply(reply_message)
                         already_commented_ids.append(comment.id)
+                        sleep(600)  # Can't reply again for another 10 minutes.
+
+
+def top_phrase_match(query, top_phrases):
+    phrase, score = process.extractOne(
+        query, top_phrases, scorer=fuzz.token_sort_ratio)
+    if score >= 87:
+        return phrase
+    else:
+        return None
 
 
 def frinkiac_query(comment_text):

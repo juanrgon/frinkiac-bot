@@ -33,7 +33,7 @@ def main():
     while True:
         old_id_list = already_commented_ids
         already_commented_ids = []
-        with open('already_commented_ids.yaml', 'w') as phrases_file:
+        with open('already_commented_ids.yaml', 'w+') as phrases_file:
             top_phrases_yaml = yaml.dump(phrases_file.read(),
                                          default_flow_style=False)
             phrases_file.write(top_phrases_yaml)

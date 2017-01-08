@@ -33,10 +33,9 @@ def main():
     while True:
         old_id_list = already_commented_ids
         already_commented_ids = []
-        with open('already_commented_ids.yaml', 'w+') as phrases_file:
-            top_phrases_yaml = yaml.dump(phrases_file.read(),
-                                         default_flow_style=False)
-            phrases_file.write(top_phrases_yaml)
+        with open('already_commented_ids.yaml', 'w+') as ids_file:
+            ids_yaml = yaml.dump(ids_file.read(), default_flow_style=False)
+            ids_file.write(ids_yaml)
         for comment in subreddit.comments(limit=200):
             if comment.id not in old_id_list:
                 query = frinkiac_query(comment.body)

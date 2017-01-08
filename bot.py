@@ -40,6 +40,7 @@ def main():
             if comment.id not in old_id_list:
                 query = frinkiac_query(comment.body)
                 if query:
+                    print 'Found a request query: {}'.format(query)
                     matched_top_phrase = top_phrase_match(query,
                                                           top_phrases.keys())
                     if matched_top_phrase is not None:
